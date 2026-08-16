@@ -1,0 +1,17 @@
+all:
+  hosts:
+    server_timeweb:
+      ansible_host: <IP-сервера>
+      ansible_user: root
+      ansible_ssh_private_key_file: ~/.ssh/<ключ>
+      ansible_python_interpreter: /usr/bin/python3
+    server_cubit:
+      ansible_host: <IP-сервера>
+      ansible_user: <пользователь>
+      ansible_ssh_private_key_file: ~/.ssh/<ключ>
+      ansible_python_interpreter: /usr/bin/python3
+  children:
+    server:
+      hosts:
+        server_timeweb:
+        server_cubit:

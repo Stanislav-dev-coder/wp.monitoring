@@ -1,0 +1,28 @@
+.env
+nginx/ssl/*.crt
+nginx/ssl/*.key
+.vault_pass*
+*vault_pass*.txt
+ansible/roles/
+ansible/inventory.yml
+nginx/allowed_ips.conf
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# JetBrains
+.idea/
+
+# VS Code
+.vscode/

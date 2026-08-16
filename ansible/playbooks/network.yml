@@ -1,0 +1,51 @@
+- name: Настройка сети и firewall
+  hosts: server
+  become: true
+
+  tasks:
+    - name: Создание директории для правил iptables
+      file:
+        path: /etc/iptables
+        state: directory
+        mode: "0755"
+
+    - name: Копирование правил iptables на сервер
+      copy:
+        src: ../../iptables/iptables.rules
+        dest: /etc/iptables/rules.v4
+        mode: "0644"
+
+    - name: Применение правил iptables
+      community.general.iptables_state:
+        state: restored
+        path: /etc/iptables/rules.v4
+        noflush: true
+      async: 5
+      poll: 0
+
+    - name: Сохранение правил iptables
+      command: netfilter-persistent save
+
+    - name: Включение netfilter-persistent
+      systemd:
+        name: netfilter-persistent
+        enabled: true
+
+    - name: Копирование конфигурации fail2ban
+      copy:
+        src: ../../fail2ban/jail.local
+        dest: /etc/fail2ban/jail.local
+        mode: "0644"
+      notify: Перезапуск fail2ban
+
+    - name: Включение и запуск fail2ban
+      systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Перезапуск fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted

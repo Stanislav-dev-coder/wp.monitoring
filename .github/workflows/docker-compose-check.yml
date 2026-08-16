@@ -1,0 +1,69 @@
+name: Docker Compose Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+
+jobs:
+  validate-and-start:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Создание тестового .env
+        run: |
+          cat <<EOF > .env
+          MYSQL_ROOT_PASSWORD=$(openssl rand -hex 12)
+          MYSQL_DATABASE=wordpress
+          MYSQL_USER=wordpress
+          MYSQL_PASSWORD=$(openssl rand -hex 12)
+          WORDPRESS_DB_HOST=mysql
+          WORDPRESS_DB_NAME=wordpress
+          WORDPRESS_DB_USER=wordpress
+          GF_SECURITY_ADMIN_USER=admin
+          GF_SECURITY_ADMIN_PASSWORD=$(openssl rand -hex 12)
+          GF_SERVER_ROOT_URL=http://metrics.local
+          EOF
+
+      - name: Проверка валидности docker-compose.yml
+        run: docker compose config -q
+
+      - name: Создание тестового allowed_ips.conf
+        run: |
+          cat <<EOF > nginx/allowed_ips.conf
+          allow 127.0.0.1;
+          deny all;
+          EOF
+
+      - name: Генерация самоподписанного сертификата
+        run: |
+          mkdir -p nginx/ssl
+          openssl req -x509 -nodes -days 365 \
+            -newkey rsa:2048 \
+            -keyout nginx/ssl/site.local.key \
+            -out nginx/ssl/site.local.crt \
+            -subj "/CN=site.local" \
+            -addext "subjectAltName=DNS:site.local" \
+            2>/dev/null
+
+      - name: Запуск контейнеров и ожидание готовности
+        run: docker compose --progress quiet up -d --wait --wait-timeout 120
+
+      - name: Вывод логов при сбое
+        if: failure()
+        run: |
+          for service in $(docker compose ps -a --format json | jq -r 'select((.Health != "healthy" and .Health != "") or (.State != "running")) | .Service'); do
+            echo "::group::Логи $service"
+            docker compose logs "$service"
+            echo "::endgroup::"
+          done
+
+      - name: Остановка контейнеров
+        if: always()
+        run: docker compose --progress quiet down -v

@@ -1,0 +1,151 @@
+services:
+  nginx:
+    container_name: wp-monitoring-nginx
+    image: nginx:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
+      - ./nginx/allowed_ips.conf:/etc/nginx/allowed_ips.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      wordpress:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    networks:
+      - wp-monitoring-frontend
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    container_name: wp-monitoring-wordpress
+    image: wordpress:latest
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - wp-monitoring-wp-data:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - wp-monitoring-frontend
+      - wp-monitoring-backend
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    container_name: wp-monitoring-mysql
+    image: mysql:latest
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - wp-monitoring-db-data:/var/lib/mysql
+    networks:
+      - wp-monitoring-backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  grafana:
+    container_name: wp-monitoring-grafana
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL}
+    volumes:
+      - wp-monitoring-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - wp-monitoring-frontend
+      - wp-monitoring-monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    container_name: wp-monitoring-prometheus
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - wp-monitoring-prometheus-data:/prometheus
+      - ./prometheus:/etc/prometheus:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - wp-monitoring-monitoring
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  node_exporter:
+    container_name: wp-monitoring-node-exporter
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  wp-monitoring-frontend:
+    name: wp-monitoring-frontend
+  wp-monitoring-backend:
+    name: wp-monitoring-backend
+  wp-monitoring-monitoring:
+    name: wp-monitoring-monitoring
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  wp-monitoring-wp-data:
+    name: wp-monitoring-wp-data
+  wp-monitoring-db-data:
+    name: wp-monitoring-db-data
+  wp-monitoring-grafana-data:
+    name: wp-monitoring-grafana-data
+  wp-monitoring-prometheus-data:
+    name: wp-monitoring-prometheus-data

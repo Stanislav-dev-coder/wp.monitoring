@@ -1,0 +1,5 @@
+roles:
+  - name: geerlingguy.docker
+    version: "8.0.0"
+  - name: geerlingguy.swap
+    version: "2.1.0"

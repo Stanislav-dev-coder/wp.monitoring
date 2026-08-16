@@ -1,0 +1,32 @@
+- name: Обновление системы, swap и установка пакетов
+  hosts: server
+  become: true
+
+  vars:
+    swap_file_size_mb: "2048"
+    docker_users:
+      - "{{ ansible_user }}"
+
+  tasks:
+    - name: Обновление кэша apt
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Обновление пакетов
+      apt:
+        upgrade: dist
+
+    - name: Установка пакетов
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - btop
+          - fail2ban
+          - netfilter-persistent
+        state: present
+
+  roles:
+    - geerlingguy.swap
+    - geerlingguy.docker

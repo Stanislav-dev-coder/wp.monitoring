@@ -1,0 +1,3 @@
+- import_playbook: playbooks/system.yml
+- import_playbook: playbooks/network.yml
+- import_playbook: playbooks/deploy.yml

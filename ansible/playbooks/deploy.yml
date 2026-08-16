@@ -1,0 +1,59 @@
+- name: Развёртывание проекта
+  hosts: server
+  become: true
+
+  vars:
+    project_dir: /opt/wp.monitoring
+
+  tasks:
+    - name: Создание директории проекта
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Синхронизация проекта на сервер
+      synchronize:
+        src: "{{ playbook_dir }}/../../"
+        dest: "{{ project_dir }}/"
+        delete: true
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=ansible"
+          - "--exclude=nginx/ssl"
+          - "--exclude=.DS_Store"
+          - "--exclude=Thumbs.db"
+          - "--exclude=.idea"
+          - "--exclude=.vscode"
+
+    - name: Генерация .env из шаблона с секретами
+      template:
+        src: ../templates/env.j2
+        dest: "{{ project_dir }}/.env"
+        mode: "0600"
+
+    - name: Создание директории для SSL-сертификата
+      file:
+        path: "{{ project_dir }}/nginx/ssl"
+        state: directory
+        mode: "0755"
+
+    - name: Проверка наличия SSL-сертификата
+      stat:
+        path: "{{ project_dir }}/nginx/ssl/site.local.crt"
+      register: ssl_cert
+
+    - name: Генерация самоподписанного сертификата
+      command: >
+        openssl req -x509 -nodes -days 365
+        -newkey rsa:2048
+        -keyout {{ project_dir }}/nginx/ssl/site.local.key
+        -out {{ project_dir }}/nginx/ssl/site.local.crt
+        -subj "/CN=site.local"
+        -addext "subjectAltName=DNS:site.local"
+      when: not ssl_cert.stat.exists
+
+    - name: Запуск docker compose
+      command: docker compose up -d
+      args:
+        chdir: "{{ project_dir }}"
