@@ -70,6 +70,15 @@ ansible-playbook -i inventory.yml site.yml --vault-password-file ~/.vault_pass.t
 <IP-сервера>   metrics.local
 ```
 
+## Локальный запуск без Ansible
+
+Для локального тестирования docker-compose.yml без разворачивания на сервере:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
 ## Проверка
 
 1. Проверка с помощью `curl`:
@@ -102,7 +111,9 @@ ansible -i inventory.yml server_timeweb -m command -a "curl -I -H 'Host: site.lo
 
 ### fail2ban + iptables
 
-Установил минимальную конфигурацию `fail2ban` для защиты от брутфорса с баном навсегда. Для дополнительной защиты сервера настроил цепочку INPUT `iptables`: разрешил loopback, ICMP запросы, подключение к 22 порту, established/related-соединения и 9100 порт `node_exporter` с подсети docker, которую установил для подсети мониторинга. Правила применяются через модуль `community.general.iptables_state` с `noflush: true`, чтобы не перезаписывать правила Docker.
+Установил минимальную конфигурацию `fail2ban` для защиты от брутфорса с баном навсегда. Для дополнительной защиты сервера настроил цепочку INPUT `iptables`: разрешил loopback, ICMP запросы, подключение к 22 порту и established/related-соединения. Правила применяются через модуль `community.general.iptables_state` с `noflush: true`, чтобы не перезаписывать правила Docker.
+
+`node_exporter` работает в отдельной docker-сети `wp-monitoring-monitoring` вместе с `prometheus` и `grafana`, порт 9100 наружу не публикуется. Метрики хоста (включая сетевой трафик) собираются через `pid: host` и монтирование корневой файловой системы хоста (`/:/host:ro,rslave`), что даёт корректные метрики без публикации сетевого стека хоста в контейнер.
 
 ### Домен .local
 

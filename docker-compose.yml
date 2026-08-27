@@ -1,7 +1,7 @@
 services:
   nginx:
     container_name: wp-monitoring-nginx
-    image: nginx:latest
+    image: nginx:1.31.3
     restart: unless-stopped
     ports:
       - "80:80"
@@ -25,7 +25,7 @@ services:
 
   wordpress:
     container_name: wp-monitoring-wordpress
-    image: wordpress:latest
+    image: wordpress:7.0.4
     restart: unless-stopped
     environment:
       WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST}
@@ -48,7 +48,7 @@ services:
 
   mysql:
     container_name: wp-monitoring-mysql
-    image: mysql:latest
+    image: mysql:8.4.11
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -68,7 +68,7 @@ services:
 
   grafana:
     container_name: wp-monitoring-grafana
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.0
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
@@ -91,7 +91,7 @@ services:
 
   prometheus:
     container_name: wp-monitoring-prometheus
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     restart: unless-stopped
     volumes:
       - wp-monitoring-prometheus-data:/prometheus
@@ -99,8 +99,6 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=7d"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - wp-monitoring-monitoring
     healthcheck:
@@ -111,18 +109,17 @@ services:
 
   node_exporter:
     container_name: wp-monitoring-node-exporter
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.12.1
     restart: unless-stopped
-    network_mode: host
     pid: host
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
+      - /:/host:ro,rslave
     command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--path.rootfs=/rootfs"
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)"
+      - "--collector.netdev.device-exclude=^(veth.*|docker.*|br-.*|lo)$$"
+    networks:
+      - wp-monitoring-monitoring
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
       interval: 10s
@@ -136,9 +133,6 @@ networks:
     name: wp-monitoring-backend
   wp-monitoring-monitoring:
     name: wp-monitoring-monitoring
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 volumes:
   wp-monitoring-wp-data:

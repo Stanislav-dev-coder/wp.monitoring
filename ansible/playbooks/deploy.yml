@@ -25,6 +25,7 @@
           - "--exclude=Thumbs.db"
           - "--exclude=.idea"
           - "--exclude=.vscode"
+          - "--exclude=*.md"
 
     - name: Генерация .env из шаблона с секретами
       template:
